@@ -1,0 +1,96 @@
+# Central configuration for the OCT topology-aware LDM augmentation study
+#
+# Demo-style data layout: `raw_dir` points directly at the folder containing
+# the per-class subfolders (NORMAL/, CNV/, DME/, DRUSEN/). 
+project:
+  name: "oct-topology-ldm-augmentation"
+  seed: 42
+  output_dir: "outputs/"
+  device: "cuda"  # falls back to cpu if unavailable
+
+data:
+  raw_dir: "data/"                # demo-style: per-class folders live directly in ./data/
+  processed_dir: "data_processed/"
+  classes: ["NORMAL", "CNV", "DME", "DRUSEN"]
+  image_size: 224
+  max_samples_per_class: 400
+  test_split: 0.15                # held-out FIXED real test set, never touched by synthetic data
+  val_split: 0.15
+  train_split: 0.70
+
+generative:
+  model_type: "monai_ldm"               # MONAI Generative Models: autoencoder + diffusion UNet
+  autoencoder_checkpoint: "outputs/models/autoencoder.pt"   
+  diffusion_checkpoint: "outputs/models/diffusion_unet.pt"  
+  latent_channels: 3
+  image_size: 224
+  num_train_epochs: 10                  
+  batch_size: 4                         
+  learning_rate: 2.5e-5
+  num_train_timesteps: 100              
+
+
+  num_inference_steps: 50              # DDIM sampling steps (≤ num_train_timesteps so the
+                                        # sub-schedule strides cleanly over the 100-level schedule)
+  scheduler: "ddim"                     # ddpm (slow, closer to training) | ddim (fast inference)
+  conditioning: "class_label"           # class-conditional generation
+
+# Stage 2B: Topological validation of synthetic OCT images
+topology:
+  segmentation:
+    backend: "profile"            # "profile" (intensity heuristic) | "unet" (Duke-trained MONAI UNet)
+    checkpoint_path: null          # TODO: path to trained UNet segmentation checkpoint (Duke DME)
+  use_persistence: true            # use persistent homology (ripser/gudhi) when available
+  max_samples_per_class: 200       # images per class compared in the real-vs-synthetic topology test
+  pass_threshold_beta0: 0.5        # max allowed mean difference in connected components
+  pass_threshold_beta1: 0.5        # max allowed mean difference in holes/loops
+
+# Factorial design: Factor A x Factor B x Factor C  (5 x 3 x 3 design)
+experiment:
+  factor_a_synthetic_ratio:             # proportion of synthetic:real images injected
+    - 0.0     # baseline: 0% synthetic (real data only)
+    - 0.25
+    - 1.00    # 100% synthetic augmentation ceiling
+  factor_b_distribution_strategy:
+    - "proportional"     # synthetic images added in same class proportions as real data
+    - "minority_only"    # synthetic images allocated only to minority/rare classes
+  factor_c_architecture:
+    - "resnet50"
+    - "efficientnet_b0"   
+  n_seeds_per_cell: 1       
+  cross_validation_folds: 1 # set >1 to enable k-fold in addition to seed repeats
+
+training:
+  batch_size: 8             
+  num_epochs: 10            
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  optimizer: "adamw"
+  lr_scheduler: "cosine"
+  early_stopping_patience: 3
+  num_workers: 4            
+
+evaluation:
+  metrics: ["accuracy", "precision", "recall", "f1", "roc_auc", "per_class_report"]
+
+explainability:
+  cnn_method: "gradcam"          # for ResNet50 / EfficientNet-B0
+  vit_method: "attention_rollout" # for ViT
+  target_layers:
+    resnet50: "layer4"
+    efficientnet_b0: "conv_head"
+  quantitative_metrics: ["iou", "dice", "center_of_mass_distance", "earth_movers_distance"]
+  lesion_mask_dir: null            # TODO: path to ground-truth/lesion attention masks if available
+  heatmap_threshold: 0.5           # binarization threshold for IoU/Dice computation
+
+statistics:
+  alpha: 0.05
+  anova_type: "three_way"          # main effects + all 2-way and 3-way interactions
+  post_hoc_test: "tukey_hsd"
+  correction_method: "bonferroni"
+
+hypotheses:
+  h1_synthetic_ratio_effect: true
+  h2_distribution_strategy_effect: true
+  h3_architecture_interaction: true
+  h4_explainability_effect: true

@@ -1,0 +1,40 @@
+# demo script & output
+_quick_demo.py
+_smoke_test.py
+_demo_output/
+docs/
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# data and generated artifacts
+data_raw/
+data_processed/
+outputs/
+*.pt
+*.pth
+*.ckpt
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+.venv/
+.pytest_cache/
+
+
+# temporary files
+data/test_raw/
+data/OCT2017/
+configs/config_full_factorial.yaml
+
+# proposal/report artifacts (not part of the code repo)
+reports/
+*.docx
+*.pdf
+scripts/convert_md_to_docx.py
+scripts/convert_to_docx.py
+scripts/verify_docx.py
